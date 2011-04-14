@@ -6,7 +6,7 @@
  * REQUIRES ExpressionEngine 2+
  * 
  * @package     ED_ImageResizer
- * @version     1.0.0
+ * @version     1.0.1
  * @author      Glen Swinfield (Erskine Design)
  * @copyright   Copyright (c) 2009 Erskine Design
  * @license     http://creativecommons.org/licenses/by-sa/3.0/ Attribution-Share Alike 3.0 Unported
@@ -14,7 +14,7 @@
  */
  
 $plugin_info = array(   'pi_name'           => 'EE2 ED Image Resizer',
-                        'pi_version'        => '1.0.0',
+                        'pi_version'        => '1.0.1',
                         'pi_author'         => 'Erskine Design',
                         'pi_author_url'     => 'http://github.com/erskinedesign/',
                         'pi_description'    => 'Resizes and caches images on the fly',
@@ -55,13 +55,11 @@ Class Ed_imageresizer
     private $id                 = '';       // image tag id
     private $default_image      = '';       // the default image to use if one is not passed into the params
     private $href_only          = '';       // only return the path to the file, not the full tag.
+    private $omit_size          = FALSE;     // omit width and height tags for responsive designs
+    private $absolute_url        = FALSE;    // use an absolute URL to the image
     private $ext                = '';
     
-    // ADD PATHS TO YOUR WEB ROOT AND CACHE FOLDER HERE
-    private $server_path        = ''; // no trailing slash
-    private $cache_path         = '/'; // with trailing slash
-    
-    private $memory_limit       = '36M'; // the memory limit to set
+    private $memory_limit       = '64M'; // the memory limit to set
 
     /**
      * Constructor
@@ -70,6 +68,10 @@ Class Ed_imageresizer
     {
         $EE =& get_instance();
         $EE->load->library('typography'); 
+
+	$this->server_path	= rtrim(FCPATH, '/'); // no trailing slash
+	$this->cache_path	= FCPATH.'images/cache/'; // with trailing slash
+	$this->site_url		= 'http://'.$_SERVER['SERVER_NAME']; // without trailing slash    
         
         $this->forceWidth     = $EE->TMPL->fetch_param('forceWidth') != 'yes' ? FALSE : TRUE;
         $this->forceHeight    = $EE->TMPL->fetch_param('forceHeight') != 'yes' ? FALSE : TRUE;
@@ -85,6 +87,9 @@ Class Ed_imageresizer
         $this->default_image  = (string) html_entity_decode($EE->TMPL->fetch_param('default'));
         $this->href_only      = $EE->TMPL->fetch_param('href_only');
         $this->debug          = $EE->TMPL->fetch_param('debug') != 'yes' ? false : true;
+
+        $this->absolute_url     = $this->EE->TMPL->fetch_param('absolute_url', FALSE);
+        $this->omit_size     = $this->EE->TMPL->fetch_param('omit_size', FALSE);
         
         $error_string = '<div style="background:#f00; color:#fff; font:bold 11px verdana; padding:12px; border:2px solid #000">%s</div>';
 
@@ -384,9 +389,14 @@ Class Ed_imageresizer
           $this->image_tag .= 'alt="" ';
         }
         
-        $this->image_tag .= ' width="'.$width.'" height="'.$height.'" ';
+        if($this->omit_size == '')
+        {
+        	$this->image_tag .= ' width="'.$width.'" height="'.$height.'" ';
+        }
         
         $image_path = str_replace($this->server_path, '', $this->resized);
+
+        $image_path = ($this->absolute_url == TRUE) ? $this->site_url . $image_path : $image_path;
         
         $this->image_tag .= 'src="'.$image_path.'" />';
         
@@ -399,16 +409,7 @@ Class Ed_imageresizer
 	ob_start(); 
 	?>
 
-** You must add the server and cache dir paths to the class variables in the plugin file! **
-
-Example:
----------
-
-// ADD PATHS TO YOUR WEB ROOT AND CACHE FOLDER HERE
-private $server_path        = '/this/is/my/website/root/folder';                    // no trailing slash
-private $cache_path         = '/this/is/my/website/root/folder/and/image/cache/';   // with trailing slash
-
-Paramaters:
+Parameters:
 ----------
 * image         ~ the file to resize, will parse file dirs
 * maxWidth      ~ maximumm width of resized image
@@ -422,6 +423,8 @@ Paramaters:
 * id            ~ img tag id
 * title         ~ img tag title
 * href_only     ~ if yes just returns the path to the resized file, not the full image tag, useful for modal windows etc.
+* omit_size     ~ if yes, the width and height parameters will be moitted from the image tag (useful for responsive designs)
+* absolute_url  ~ if yes, the absolute url will be used for your image (useful for RSS feeds and the like)
 * debug         ~ defaults to no - yes for debug mode (creates error messages instead of quitting quietly)
 
 Usage Example
